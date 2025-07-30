@@ -1,26 +1,12 @@
 #Include lib\TextRender.ahk
 #Include lib\JSON.ahk
+#Include lib\EasyInput.ahk
+#Include lib\FindText\dxgi.ahk
+; #Include lib\Debug.ahk
 
 CoordMode "Mouse", "Screen"
 
 POE_EXE := "Path of Exile"
-
-KEY_DELAY_BASE := 100
-KEY_DELAY_RANGE := 25
-KEY_UP_BASE := 50
-KEY_UP_RANGE := 25
-
-MOUSE_ACC := 5
-MOUSE_SPEED_BASE := 15
-MOUSE_SPEED_RANGE := 5
-
-KeyUpSleep(upBase := KEY_UP_BASE, upRange := KEY_UP_RANGE) {
-    Sleep upBase + Random(-upRange, upRange)
-}
-
-KeyBetweenSleep(delayBase := KEY_DELAY_BASE, delayRange := KEY_DELAY_RANGE) {
-    Sleep delayBase + Random(-delayRange, delayRange)
-}
 
 class Rect {
     __New(x1, y1, x2?, y2?, w?, h?) {
@@ -137,17 +123,23 @@ class Rect {
     }
 }
 
+; 文本提示框，默认1s后关闭
 TextTooltip(text, time := 1000) {
     TextRender(text, "t:" time " c:#F9E486 y:75vh r:1vmin")
 }
 
-GetNextLeftClickPos(&x, &y) {
+; 获取下一次鼠标左键点击的坐标
+GetNextLeftClickPos(&x, &y, text?) {
     ; 创建全屏提示窗口
     g := Gui()
     g.Opt("+AlwaysOnTop +ToolWindow -Caption +LastFound +Owner")
     g.BackColor := 0x000000
     WinSetTransColor(" 100", g)
-    t := g.Add("Text", "Center X0 Y" A_ScreenHeight / 20 " W" A_ScreenWidth " H" A_ScreenHeight, "按下鼠标左键记录位置")
+    content := "按下鼠标左键记录位置"
+    if IsSet(text) {
+        content := content "`n" text
+    }
+    t := g.Add("Text", "Center X0 Y" A_ScreenHeight / 20 " W" A_ScreenWidth " H" A_ScreenHeight, content)
     t.SetFont("cFFFFFF s" Min(A_ScreenHeight, A_ScreenWidth) / 20)
     ; 显示全屏提示窗口
     g.Show("X0 Y0 W" A_ScreenWidth " H" A_ScreenHeight)
@@ -162,6 +154,7 @@ GetNextLeftClickPos(&x, &y) {
     return
 }
 
+; 获取下一次鼠标左键框选的Rect对象
 GetNextLeftClickRect()
 {
     ; 创建全屏提示窗口
@@ -206,95 +199,7 @@ GetNextLeftClickRect()
     return Rect(Min(x1, x2), Min(y1, y2), Max(x1, x2), Max(y1, y2))
 }
 
-RectTooltip(&r, rows, cols) {
-    g := Gui()
-    g.Opt("+AlwaysOnTop +ToolWindow -Caption +LastFound +Owner")
-    g.BackColor := 0x000000
-    WinSetTransColor(" 150", g)
-
-    subWidth := r.width / cols
-    subHeight := r.height / rows
-    b := Round(Min(subWidth, subHeight) / 4)
-    startX := (subWidth - b) / 2
-    startY := (subHeight - b) / 2
-
-    loop rows {
-        row := A_Index - 1
-        loop cols {
-            col := A_Index - 1
-            g.Add("Button", "Disabled W" b " H" b " X" Round(startX + col * subWidth) " Y" Round(startY + row * subHeight))
-        }
-    }
-
-    g.Show("NA X" r.x " Y" r.y " W" r.width " H" r.height)
-
-    WinWaitActive("ahk_id " g.Hwnd)
-    g.Destroy()
-}
-
-SaveJson(map, file) {
-    file := StrReplace(file, "/", "\")
-    if FileExist(file) {
-        FileDelete(file)
-    } else {
-        dir := SubStr(file, 1, InStr(file, "\", , -1))
-        if (!FileExist(dir) && dir != "") {
-            DirCreate dir
-        }
-    }
-    FileAppend(JSON.stringify(map), file, "UTF-8")
-    return
-}
-
-LoadJson(file) {
-    if !FileExist(file) {
-        throw "文件" file "不存在"
-    }
-    content := FileRead(file, "UTF-8")
-    return JSON.parse(content, , false)
-}
-
-MoveMouseRandomBezier(x, y, acc := MOUSE_ACC, speedBase := MOUSE_SPEED_BASE, speedRange := MOUSE_SPEED_RANGE) {
-    MouseGetPos(&x1, &y1)
-    x4 := x + Random(-acc, acc)
-    y4 := y + Random(-acc, acc)
-
-    distance := Sqrt((x1 - x4) * (x1 - x4) + (y1 - y4) * (y1 - y4))
-    r := Round(0.5 * distance)
-    x2 := Random(Max(0, x1 - r), Min(A_ScreenWidth, x1 + r))
-    y2 := Random(Max(0, y1 - r), Min(A_ScreenHeight, y1 + r))
-    x3 := Random(Max(0, x4 - r), Min(A_ScreenWidth, x4 + r))
-    y3 := Random(Max(0, y4 - r), Min(A_ScreenHeight, y4 + r))
-
-    num := Round(distance / 5)
-    each := 1 / num
-    loop num - 1 {
-        t := A_Index * each
-        x := Round(x1 * (1 - t) * (1 - t) * (1 - t) + 3 * x2 * t * (1 - t) * (1 - t) + 3 * x3 * t * t * (1 - t) + x4 * t * t * t)
-        y := Round(y1 * (1 - t) * (1 - t) * (1 - t) + 3 * y2 * t * (1 - t) * (1 - t) + 3 * y3 * t * t * (1 - t) + y4 * t * t * t)
-        loop speedBase + Random(-speedRange, speedRange) {
-            MouseMove(x, y)
-        }
-    }
-    MouseMove(x4, y4)
-}
-
-LeftClickRandom(delayBase := KEY_DELAY_BASE, delayRange := KEY_DELAY_RANGE, upBase := KEY_UP_BASE, upRange := KEY_UP_RANGE) {
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{LButton Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{LButton Up}"
-    return
-}
-
-RightClickRandom(delayBase := KEY_DELAY_BASE, delayRange := KEY_DELAY_RANGE, upBase := KEY_UP_BASE, upRange := KEY_UP_RANGE) {
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{RButton Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{RButton Up}"
-    return
-}
-
+; 区域选择窗口
 class RangeSelectWindow {
     __New(title, callback, tooltip := "", rows := "", cols := "", x := "", y := "", w := "", h := "") {
         g := Gui(, title)
@@ -433,154 +338,7 @@ class RangeSelectWindow {
     }
 }
 
-GetItemInfo(delayBase := KEY_DELAY_BASE, delayRange := KEY_DELAY_RANGE, upBase := KEY_UP_BASE, upRange := KEY_UP_RANGE) {
-    clipSaved := ClipboardAll()
-    A_Clipboard := ""
-
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Ctrl Down}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{C Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{C Up}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Ctrl Up}"
-    res := A_Clipboard
-    A_Clipboard := clipSaved
-    return res
-}
-
-GetItemDetailInfo(delayBase := KEY_DELAY_BASE, delayRange := KEY_DELAY_RANGE, upBase := KEY_UP_BASE, upRange := KEY_UP_RANGE) {
-    clipSaved := ClipboardAll()
-    A_Clipboard := ""
-
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Ctrl Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{Alt Down}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{C Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{C Up}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Alt Up}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{Ctrl Up}"
-    res := A_Clipboard
-    A_Clipboard := clipSaved
-    return res
-}
-
-MoveItemFast(delayBase := KEY_DELAY_BASE, delayRange := KEY_DELAY_RANGE, upBase := KEY_UP_BASE, upRange := KEY_UP_RANGE) {
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Ctrl Down}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{LButton Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{LButton Up}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Ctrl Up}"
-}
-
-SplitTenItem(delayBase := KEY_DELAY_BASE, delayRange := KEY_DELAY_RANGE, upBase := KEY_UP_BASE, upRange := KEY_UP_RANGE) {
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Shift Down}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{LButton Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{LButton Up}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Shift Up}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Numpad1 Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{Numpad1 Up}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Numpad0 Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{Numpad0 Up}"
-    Sleep delayBase + Random(-delayRange, delayRange)
-    Send "{Enter Down}"
-    Sleep upBase + Random(-upRange, upRange)
-    Send "{Enter Up}"
-    return
-}
-
-FindItemName(text) {
-    RegExMatch(text, "稀 有 度:[^\r\n]*\R\R?([\s\S]+?)\R\s*--------", &match)
-    if match = "" {
-        return ""
-    }
-    itemName := Trim(match[1], "★ `t")
-    return itemName
-}
-
-FindItemNumber(text) {
-    RegExMatch(text, "堆叠数量: ([0-9]+,?[0-9]*) / [0-9]+", &match)
-    itemName := Trim(match[1])
-    itemName := StrReplace(itemName, ",")
-    ; TextTooltip(itemName)
-    return Integer(itemName)
-}
-
-FindItemQuality(text) {
-    RegExMatch(text, "品质: \+([0-9]+)%", &match)
-    if match = "" {
-        return 0
-    } else {
-        return Integer(Trim(match[1]))
-    }
-}
-
-FindItemType(text) {
-    RegExMatch(text, "物品类别: (.+)", &match)
-    if match = "" {
-        return ""
-    }
-    itemName := Trim(match[1])
-    return itemName
-}
-
-FindItemRarity(text) {
-    RegExMatch(text, "稀 有 度: (.+)", &match)
-    if match = "" {
-        return ""
-    } else {
-        return Trim(match[1])
-    }
-}
-
-HasContainAnyModifiers(text, modifiers*) {
-    for k, v in modifiers {
-        if InStr(text, v) {
-            return true
-        }
-    }
-    return false
-}
-
-IsValueInArray(value, array) {
-    for k, v in array {
-        if v = value {
-            return true
-        }
-    }
-    return false
-}
-
-FileToStrArray(file) {
-    lines := FileRead(file, "UTF-8")
-    data := StrSplit(lines, "`r`n")
-    res := []
-    for k, v in data {
-        if v != "" {
-            res.Push(v)
-        }
-    }
-    return res
-}
-
-
+; 目标位置选择窗口
 class ItemPositionWindow {
     __New(title, items, callback, tooltip := "") {
         l := items.Length
@@ -681,18 +439,334 @@ class ItemPositionWindow {
     }
 }
 
-; ^1::
-; {
-;     info := GetItemInfo()
-;     MsgBox Mod(10, 3)
+; 热键注册窗口
+; {name: "func1", callback : func1, default: "^1", active: "poe"}
+class ShortcutEditWindow {
+    __New(title, objs, callback, tooltip := "") {
+        l := objs.Length
+        g := Gui(, title)
+        g.SetFont("s9")
+        g.AddGroupBox("x8 y0 w249 h" 17 + 32 * l, "")
+
+        this._t1 := g.AddText("x8 y" 22 + 32 * l " w161 h36", tooltip)
+        this._b1 := g.AddButton("x176 y" 28 + 32 * l " w80 h23", "确认")
+        this._b1.OnEvent("Click", RegisterHotkey)
+        this._h1 := []
+        this._last := ""
+        for k, v in objs {
+            y := 16 + 32 * (k - 1)
+            g.AddText("center x16 y" y " w100 h23", v.name ":")
+            if v.HasOwnProp("default") {
+                tem_h := g.AddHotkey("x128 y" y " w120 h21", v.default)
+            } else {
+                tem_h := g.AddHotkey("x128 y" y " w120 h21")
+            }
+
+            if k = 1 {
+                ControlFocus(tem_h)
+            }
+
+            this._y := y
+            this._h1.Push(tem_h)
+        }
+
+        RegisterHotkey(*) {
+            seen := {}
+            ; hasDuplicates := false
+            for k, v in this._h1 {
+                if seen.HasOwnProp(v.Value) {
+                    MsgBox v.Value "快捷键冲突"
+                    return
+                }
+                seen.DefineProp(v.Value, { Value: true })
+            }
+
+            if this._last = "" {
+                this._last := []
+                for k, v in this._h1 {
+                    this._last.Push(v.Value)
+                    if v.Value != "" {
+                        if objs[k].HasOwnProp("active") and objs[k].active != "" {
+                            HotIfWinActive objs[k].active
+                        } else {
+                            HotIfWinActive
+                        }
+                        Hotkey(v.Value, objs[k].callback, "On")
+                    }
+                }
+            } else {
+                for k, v in this._last {
+                    if v != "" {
+                        try Hotkey(v, "Off")
+                    }
+                }
+                for k, v in this._h1 {
+                    if v.Value != "" {
+                        if objs[k].HasOwnProp("active") and objs[k].active != "" {
+                            HotIfWinActive objs[k].active
+                        } else {
+                            HotIfWinActive
+                        }
+                        Hotkey(v.Value, objs[k].callback, "On")
+                    }
+                    this._last[k] := v.Value
+                }
+            }
+            this.Hide()
+            HotIfWinActive
+            callback()
+        }
+
+        CloseWindow(*) {
+            Suspend this._suspend
+        }
+
+        g.OnEvent("Close", CloseWindow)
+
+        this._gui := g
+        this._l := l
+        this._suspend := A_IsSuspended
+    }
+
+    Length {
+        get => this._l
+    }
+
+    __Delete() {
+        this._gui.Destroy()
+        return
+    }
+
+    FocusConfirm() {
+        ControlFocus(this._b1)
+        return
+    }
+
+    Show() {
+        this._suspend := A_IsSuspended
+        Suspend 1
+        this._gui.Show("w266 h" this._y + 80)
+        return
+    }
+
+    Hide() {
+        Suspend this._suspend
+        this._gui.Hide()
+        return
+    }
+
+    results {
+        get {
+            res := []
+            for index, value in this._h1 {
+                res.Push(value.Value)
+            }
+            return res
+        }
+        set {
+            for k, v in Value {
+                this._h1[k].Value := v
+            }
+            this.FocusConfirm()
+            return
+        }
+    }
+}
+
+; 框选范围提示窗口，获取焦点后自动关闭
+RectTooltip(&r, rows, cols) {
+    g := Gui()
+    g.Opt("+AlwaysOnTop +ToolWindow -Caption +LastFound +Owner")
+    g.BackColor := 0x000000
+    WinSetTransColor(" 150", g)
+
+    subWidth := r.width / cols
+    subHeight := r.height / rows
+    b := Round(Min(subWidth, subHeight) / 4)
+    startX := (subWidth - b) / 2
+    startY := (subHeight - b) / 2
+
+    loop rows {
+        row := A_Index - 1
+        loop cols {
+            col := A_Index - 1
+            g.Add("Button", "Disabled W" b " H" b " X" Round(startX + col * subWidth) " Y" Round(startY + row * subHeight))
+        }
+    }
+
+    g.Show("NA X" r.x " Y" r.y " W" r.width " H" r.height)
+
+    WinWaitActive("ahk_id " g.Hwnd)
+    g.Destroy()
+}
+
+; 保存对象到json文件
+SaveJson(obj, file) {
+    file := StrReplace(file, "/", "\")
+    if FileExist(file) {
+        FileDelete(file)
+    } else {
+        dir := SubStr(file, 1, InStr(file, "\", , -1))
+        if (!FileExist(dir) && dir != "") {
+            DirCreate dir
+        }
+    }
+    FileAppend(JSON.stringify(obj), file, "UTF-8")
+    return
+}
+
+; 读取json文件为对象
+LoadJson(file) {
+    if !FileExist(file) {
+        throw "文件" file "不存在"
+    }
+    content := FileRead(file, "UTF-8")
+    return JSON.parse(content, , false)
+}
+
+; 读取文件为列表
+FileToStrArray(file) {
+    lines := FileRead(file, "UTF-8")
+    data := StrSplit(lines, "`r`n")
+    res := []
+    for k, v in data {
+        if v != "" {
+            res.Push(v)
+        }
+    }
+    return res
+}
+
+; 获取物品信息
+GetItemInfo() {
+    CommandBetweenSleepRandom()
+    clipSaved := ClipboardAll()
+    A_Clipboard := ""
+    TapKeys("lctrl", "c")
+    res := A_Clipboard
+    A_Clipboard := clipSaved
+    return res
+}
+
+; 获取物品详细信息
+GetItemDetailInfo() {
+    CommandBetweenSleepRandom()
+    clipSaved := ClipboardAll()
+    A_Clipboard := ""
+    TapKeys("LCtrl", "LAlt", "c")
+    res := A_Clipboard
+    A_Clipboard := clipSaved
+    return res
+}
+
+; 快速移动物品
+MoveItemFast() {
+    CommandBetweenSleepRandom()
+    TapKeys("LCtrl", "LButton")
+}
+
+; 物品分组拿取
+SplitItems(num := 10) {
+    KeyDown("LShift")
+    MouseClickRandom()
+    KeyUp("LShift")
+    KeyBetweenSleepRandom()
+    target := String(num)
+    loop StrLen(target) {
+        TapKeys(SubStr(target, A_Index, 1))
+        KeyBetweenSleepRandom()
+    }
+    TapKeys("Enter")
+}
+
+; 查找物品名称
+FindItemName(text) {
+    RegExMatch(text, "稀 有 度:[^\r\n]*\R\R?([\s\S]+?)\R\s*--------", &match)
+    if match = "" {
+        return ""
+    }
+    itemName := Trim(match[1], "★ `t")
+    return itemName
+}
+
+; 查找物品堆叠数量
+FindItemNumber(text) {
+    RegExMatch(text, "堆叠数量: ([0-9]+,?[0-9]*) / [0-9]+", &match)
+    itemName := Trim(match[1])
+    itemName := StrReplace(itemName, ",")
+    ; TextTooltip(itemName)
+    return Integer(itemName)
+}
+
+; 查找物品品质
+FindItemQuality(text) {
+    RegExMatch(text, "品质: \+([0-9]+)%", &match)
+    if match = "" {
+        return 0
+    } else {
+        return Integer(Trim(match[1]))
+    }
+}
+
+; 查找物品类型
+FindItemType(text) {
+    RegExMatch(text, "物品类别: (.+)", &match)
+    if match = "" {
+        return ""
+    }
+    itemName := Trim(match[1])
+    return itemName
+}
+
+; 查找物品稀有度
+FindItemRarity(text) {
+    RegExMatch(text, "稀 有 度: (.+)", &match)
+    if match = "" {
+        return ""
+    } else {
+        return Trim(match[1])
+    }
+}
+
+; 判断物品信息中是否含有指定字符串
+HasContainAnyModifiers(text, modifiers*) {
+    for k, v in modifiers {
+        if InStr(text, v) {
+            return true
+        }
+    }
+    return false
+}
+
+; 判断数组是否包含目标对象
+IsValueInArray(value, array) {
+    for k, v in array {
+        if v = value {
+            return true
+        }
+    }
+    return false
+}
+
+; test1(*) {
+;     MsgBox 1
 ; }
-; ; ^2::
-; ; {
-; ;     GetNextLeftClickPos(&x, &y)
-; ;     MsgBox x " " y
-; ; }
+; test2(*) {
+;     MsgBox 2
+; }
 
-; ; 按 ESC 键退出脚本
-; Esc:: ExitApp
+; s := ShortcutEditWindow("test", [{ name: "func1", callback: test1, default: "^1", active: "" }, { name: "func2", callback: test2, default: "^2", active: "" }], "sdfsdfsdfsdfdsf`nsdfsdfdsfdsfds`ndsfsdfsdf")
+; ; s.results := ["^2", "^3"]
+; ; PrintArray s.results
+; s.Show()
 
-; FileToStrArray("cheap.txt")
+; ^0::
+; {
+;     s.Show()
+; }
+
+; x := 100
+; x := String(x)
+; loop StrLen(x) {
+;     MsgBox SubStr(x, A_Index, 1)
+; }

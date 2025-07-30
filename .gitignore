@@ -1,4 +1,6 @@
-main.exe
+ahkv2/main.exe
+ahkv2/64bit/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
