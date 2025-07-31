@@ -17,10 +17,10 @@ class Rect {
             this._w := w
             this._h := h
         } else {
-            throw "创建Rect时需要指定x2、y2或w、h中的一组"
+            throw Error("创建Rect时需要指定x2、y2或w、h中的一组")
         }
-        if this._w < 0 or this._h < 0 {
-            throw "Rect的宽和高不能为负数"
+        if this._w <= 0 or this._h <= 0 {
+            throw Error("Rect的宽和高必须大于0")
         }
         this._x := x1
         this._y := y1
@@ -196,7 +196,14 @@ GetNextLeftClickRect()
     g2.Destroy()
     g.Destroy()
 
-    return Rect(Min(x1, x2), Min(y1, y2), Max(x1, x2), Max(y1, y2))
+    try {
+        res := Rect(Min(x1, x2), Min(y1, y2), Max(x1, x2), Max(y1, y2))
+    }  catch Error as err {
+        MsgBox err.Message
+        return
+    }
+    
+    return res
 }
 
 ; 区域选择窗口
@@ -234,6 +241,12 @@ class RangeSelectWindow {
         B1OnEvent(*) {
             this._gui.Hide()
             r := GetNextLeftClickRect()
+
+            if r = "" {
+                this._gui.Show()
+                return
+            }
+            
             try {
                 RectTooltip(&r, this._e1.Value, this._e2.Value)
             }

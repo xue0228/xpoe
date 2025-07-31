@@ -95,7 +95,7 @@ ChangeKey(HotkeyName) {
     stopKey := HotkeyName
     stopFlag := true
     Hotkey(HotkeyName, "off")
-    TextTooltip "test"
+    ; TextTooltip "test"
 }
 
 WaitStop() {
